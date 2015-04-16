@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import requests, time, sys, signal
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 from datetime import datetime
 from pprint import pprint
 from course import Course, Section
@@ -29,7 +29,8 @@ def getJson(kwargs = None):
 
     return j
 
-def worker(classList):
+def worker(q):
+    classes = {}
     memo = {}
     # print(courses, courses[0].subject, courses[0].course)
 
@@ -53,19 +54,28 @@ def worker(classList):
                 sec//3600, (sec//60) % 60, sec % 60, (sec//3600 + t.hour) % 24,((sec//60) + t.minute) % 60,
                 t.hour, t.minute))
             signal.pause()
+
+        while not q.empty():
+            try:
+                item = q.get()
+            except:
+                continue
+
+            classes[item.course] = item
+            subject = item.subject
         
-        checkClasses(classList, memo)
+        checkClasses(classes.values(), memo, subject)
 
         time.sleep(30)
 
-def checkClasses(classList, memo):
+def checkClasses(classList, memo, subject):
     if len(classList) == 0:
         print("No courses. Exiting")
         sys.exit()
 
     jclasses = None
     while jclasses is None:
-        jclasses = getJson({'subject': classList[0].subject})
+        jclasses = getJson({'subject': subject})
 
     # update time
     t = datetime.now()
@@ -91,7 +101,7 @@ def checkClasses(classList, memo):
     for section in sections.values():
         section.getInfo(jclasses)
         # isDifferent = False
-        if section.index in memo and section.isOpen != memo[section.index]:
+        if section.index in memo and memo[section.index] is not None and section.isOpen != memo[section.index]:
             # isDifferent = True
             if section.isOpen:
                 status = section.courseStr() + " OPEN"
@@ -110,32 +120,42 @@ def checkClasses(classList, memo):
 
     print("###########################")
 
-subjects = {}
+def main():
+    subjects = {}
 
-if len(sys.argv) > 1:
-    classes = []
-    for arg in sys.argv[1:]:
-        info = arg.split(":")
+    if len(sys.argv) > 1:
+        classes = []
+        for arg in sys.argv[1:]:
+            info = arg.split(":")
 
-        if subjects.get(info[0]) is None:
-            subjects[info[0]] = []
+            if subjects.get(info[0]) is None:
+                subjects[info[0]] = []
 
-        sub = subjects[info[0]]
+            sub = subjects[info[0]]
 
-        if len(info) == 3:
-            sub.append(Section(info[0], info[1], info[2]))
-        elif len(info) == 2:
-            sub.append(Course(info[0], info[1]))
-        else:
-            print("Could not parse {:}".format(arg))
-else:
-    subjects[198] = [Course(198, 206), Course(198, 314), Section(198, 314, '12850')]
+            if len(info) == 3:
+                sub.append(Section(info[0], info[1], info[2]))
+            elif len(info) == 2:
+                sub.append(Course(info[0], info[1]))
+            else:
+                print("Could not parse {:}".format(arg))
+    else:
+        subjects[198] = [Course(198, 206), Course(198, 314), Section(198, 314, '12850')]
 
-memo = {}
-# print(courses, courses[0].subject, courses[0].course)
+    memo = {}
+    # print(courses, courses[0].subject, courses[0].course)
 
-# set the signal handler
-signal.signal(signal.SIGALRM, sigalrm_handler)
+    # set the signal handler
+    #signal.signal(signal.SIGALRM, sigalrm_handler)
 
-for classList in subjects.values():
-    Process(target=worker, args=(classList,)).start()
+    for subject, classList in subjects.items():
+        q = Queue()
+        for item in classList:
+            q.put(item)
+
+        subjects[subject] = q
+        Process(target=worker, args=(q,)).start()
+    
+
+if __name__ == '__main__':
+    main()
