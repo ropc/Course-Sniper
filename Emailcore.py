@@ -13,10 +13,10 @@ class Emailcore(object):
         # print('im in email')
         u = {}
         try:
-            with open('info.json') as f:
+            with open('/home/itslikeroar/dev/ru/info.json') as f:
                 u = json.load(f)
         except IOError:
-            u['email'] = raw_input('Email: ')
+            u['email'] = input('Email: ')
             u['pw'] = getpass()
 
         self.ESAddress = 'smtp.gmail.com'
@@ -68,7 +68,7 @@ class Emailcore(object):
         except:
             print('cant send', sys.exc_info()[1])
             self.status = 'Error Sending Mail'
-            return (1,'SendEmail',str(sys.exc_info()[1]))
+            return (1, 'SendEmail', str(sys.exc_info()[1]))
             
             
         
