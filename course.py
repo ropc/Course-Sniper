@@ -51,6 +51,7 @@ class Section(Course):
     def __init__(self, subject, course, index):
         super().__init__(subject, course)
         self.index = index
+        #self.isOpen = isOpen
 
     def __str__(self):
         return self.subject + ':' + self.course + ':' + self.index
@@ -59,10 +60,15 @@ class Section(Course):
         return super().__str__()
 
     def getPath(self, jclasses):
+        #print("such here:", jclasses)
         for i, course in enumerate(jclasses):
+            #print("a")
             if course['courseNumber'] == str(self.course):
+                #print("b")
                 for j, section in enumerate(course['sections']):
+                    #print("c")
                     if section['index'] == self.index:
+                        #print("d")
                         self.path = (i, j)
                         self.title = course['title']
                         return

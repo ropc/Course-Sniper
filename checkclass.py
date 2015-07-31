@@ -4,7 +4,7 @@ import time
 import re
 import json
 from multiprocessing import Process, Queue
-from datetime import datetime
+import datetime
 # from pprint import pprint
 
 import requests
@@ -122,6 +122,41 @@ def register(section):
         print('unable to register to', section)
         return False
 
+def getOpenCloseTimes(currentTime: datetime.datetime):
+    if currentTime.weekday() <= 4:  # weekdays
+        open, close = datetime.time(6, 25), datetime.time.max
+    else:  # weekends
+        open, close = datetime.time(6, 25), datetime.time(18, 30)
+    return open, close
+
+def webregIsOpen(currentTime: datetime.datetime):
+    """ Compares currentTime to hours of operation
+
+    I'm too lazy to make this smart and check for stuff on
+    the website itself... so just gonna hardcode some datetimes
+    """
+
+    open, close = getOpenCloseTimes(currentTime)
+    if currentTime.time() > close or currentTime.time() < open:
+        return False
+    else:
+        return True
+
+def getNextOpenTime(currentTime: datetime.datetime):
+    open, close = getOpenCloseTimes(currentTime)
+    if currentTime.time() > close or currentTime.time() < open:
+        nextday = currentTime + datetime.timedelta(1)
+        return datetime.datetime.combine(nextday, open)
+    else:
+        return currentTime
+
+
+def busySleep(startTime: datetime.datetime, wakeTime: datetime.datetime):
+    """ A busy loop to prevent hanging when standby occurs """
+    currentTime = datetime.datetime.now()
+    while currentTime > startTime and currentTime < wakeTime:
+        print("last checked time at " + str(datetime.datetime.now()))
+        time.sleep(60)
 
 def worker(q):
     classes = {}
@@ -129,23 +164,11 @@ def worker(q):
     # print(courses, courses[0].subject, courses[0].course)
 
     while True:
-        t = datetime.now()
-        # figures out how much time it needs to wait until it should start
-        # checking for classes being open again, since webreg opens and closes
-        sec = (6 * 3600) + (26 * 60)
-        if t.hour <= 6 and t.minute < 25:
-            print('ohai')
-            sec -= (t.hour * 3600) + (t.minute * 60) + t.second
-        elif ((t.weekday() == 5 or t.weekday() == 6) and
-                (t.hour >= 18 and t.minute > 30)):
-            print('here')
-            sec += ((23 - t.hour) * 3600) + ((59 - t.minute) * 60) + (59 - t.second)
-        if sec != (6 * 3600) + (26 * 60):
-            print('sleep for {0} hours {1} min and {2} sec (until ({3}:{4}) at {5}:{6})'.format(
-                sec//3600, (sec//60) % 60, sec % 60,
-                (sec//3600 + t.hour) % 24, ((sec//60) + t.minute) % 60,
-                t.hour, t.minute))
-            time.sleep(sec)
+        t = datetime.datetime.now()
+
+        if not webregIsOpen(t):
+            print("gonna sleep for a bit")
+            busySleep(t, getNextOpenTime(t))
 
         while not q.empty():
             try:
@@ -169,9 +192,12 @@ def checkClasses(classList, memo, subject):
     jclasses = None
     while jclasses is None:
         jclasses = getJson({'subject': subject})
+        if jclasses is not None and len(jclasses) == 0:
+            print(datetime.datetime.now(), "issue with the json rutgers is providing, gonna wait a minute")
+            time.sleep(60)
 
     # update time
-    t = datetime.now()
+    t = datetime.datetime.now()
 
     # print([(x.subject, x.course) for x in classList])
 
@@ -244,9 +270,10 @@ def main():
                 print("Could not parse {:}".format(arg))
     else:
         subjects[198] = [
-            Course(198, 206),
-            Course(198, 314),
-            Section(198, 314, '12850')
+            #Course(198, 206),
+            #Course(198, 314),
+            #Section(198, 314, '12850')
+            Section(198, 352, "03693"),
         ]
 
     # memo = {}
